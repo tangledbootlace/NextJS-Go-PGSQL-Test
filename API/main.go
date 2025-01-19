@@ -13,7 +13,7 @@ var db *sql.DB
 
 func main() {
 	var err error
-	db, err = sql.Open("postgres", "host=db user=postgres password=password dbname=itemsdb sslmode=disable")
+	db, err = sql.Open("postgres", "host=db user=postgres password=password dbname=runningchallengedb sslmode=disable")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -45,17 +45,27 @@ func corsMiddleware() gin.HandlerFunc {
 }
 
 func getItems(c *gin.Context) {
-	rows, err := db.Query("SELECT name FROM items")
+	rows, err := db.Query("SELECT id, challenge_name, challenge_attribute, challenge_attribute_value FROM challenge_attributes ORDER BY id")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	defer rows.Close()
 
-	var items []string
+	var items []struct {
+		ID                      int    `json:"id"`
+		ChallengeName           string `json:"challenge_name"`
+		ChallengeAttribute      string `json:"challenge_attribute"`
+		ChallengeAttributeValue string `json:"challenge_attribute_value"`
+	}
 	for rows.Next() {
-		var item string
-		if err := rows.Scan(&item); err != nil {
+		var item struct {
+			ID                      int    `json:"id"`
+			ChallengeName           string `json:"challenge_name"`
+			ChallengeAttribute      string `json:"challenge_attribute"`
+			ChallengeAttributeValue string `json:"challenge_attribute_value"`
+		}
+		if err := rows.Scan(&item.ID, &item.ChallengeName, &item.ChallengeAttribute, &item.ChallengeAttributeValue); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -67,14 +77,19 @@ func getItems(c *gin.Context) {
 
 func addItem(c *gin.Context) {
 	var item struct {
-		Name string `json:"name"`
+		ChallengeName           string `json:"challenge_name"`
+		ChallengeAttribute      string `json:"challenge_attribute"`
+		ChallengeAttributeValue string `json:"challenge_attribute_value"`
 	}
 	if err := c.BindJSON(&item); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	_, err := db.Exec("INSERT INTO items (name) VALUES ($1)", item.Name)
+	_, err := db.Exec(
+		"INSERT INTO challenge_attributes (challenge_name, challenge_attribute, challenge_attribute_value) VALUES ($1, $2, $3)",
+		item.ChallengeName, item.ChallengeAttribute, item.ChallengeAttributeValue,
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -82,4 +97,3 @@ func addItem(c *gin.Context) {
 
 	c.Status(http.StatusCreated)
 }
-
